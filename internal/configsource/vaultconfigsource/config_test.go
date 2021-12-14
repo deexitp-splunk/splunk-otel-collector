@@ -23,7 +23,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/config/configparser"
+	"go.opentelemetry.io/collector/config/configtest"
+	expcfg "go.opentelemetry.io/collector/config/experimental/config"
 	"go.uber.org/zap"
 
 	"github.com/signalfx/splunk-otel-collector/internal/configprovider"
@@ -31,7 +32,7 @@ import (
 
 func TestVaultLoadConfig(t *testing.T) {
 	fileName := path.Join("testdata", "config.yaml")
-	v, err := configparser.NewConfigMapFromFile(fileName)
+	v, err := configtest.LoadConfigMap(fileName)
 	require.NoError(t, err)
 
 	factories := map[config.Type]configprovider.Factory{
@@ -43,27 +44,21 @@ func TestVaultLoadConfig(t *testing.T) {
 
 	devToken := "dev_token"
 	otherToken := "other_token"
-	expectedSettings := map[string]configprovider.ConfigSettings{
+	expectedSettings := map[string]expcfg.Source{
 		"vault": &Config{
-			Settings: &configprovider.Settings{
-				TypeVal: "vault",
-				NameVal: "vault",
-			},
-			Endpoint:     "http://localhost:8200",
-			Path:         "secret/kv",
-			PollInterval: 1 * time.Minute,
+			SourceSettings: expcfg.NewSourceSettings(config.NewComponentID(typeStr)),
+			Endpoint:       "http://localhost:8200",
+			Path:           "secret/kv",
+			PollInterval:   1 * time.Minute,
 			Authentication: &Authentication{
 				Token: &devToken,
 			},
 		},
 		"vault/poll_interval": &Config{
-			Settings: &configprovider.Settings{
-				TypeVal: "vault",
-				NameVal: "vault/poll_interval",
-			},
-			Endpoint:     "https://localhost:8200",
-			Path:         "other/path/kv",
-			PollInterval: 10 * time.Second,
+			SourceSettings: expcfg.NewSourceSettings(config.NewComponentIDWithName(typeStr, "poll_interval")),
+			Endpoint:       "https://localhost:8200",
+			Path:           "other/path/kv",
+			PollInterval:   10 * time.Second,
 			Authentication: &Authentication{
 				Token: &otherToken,
 			},

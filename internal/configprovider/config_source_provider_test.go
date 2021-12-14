@@ -26,15 +26,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config/configparser"
+	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/config/configmapprovider"
 	"go.opentelemetry.io/collector/config/experimental/configsource"
-	"go.opentelemetry.io/collector/service/parserprovider"
 	"go.uber.org/zap"
 )
 
 func TestConfigSourceParserProvider(t *testing.T) {
 	tests := []struct {
-		parserProvider parserprovider.ParserProvider
+		parserProvider configmapprovider.Provider
 		wantErr        error
 		name           string
 		factories      []Factory
@@ -64,17 +64,13 @@ func TestConfigSourceParserProvider(t *testing.T) {
 					ErrOnCreateConfigSource: errors.New("new_manager_builder_error forced error"),
 				},
 			},
-			parserProvider: &fileParserProvider{
-				FileName: path.Join("testdata", "basic_config.yaml"),
-			},
-			wantErr: &errConfigSourceCreation{},
+			parserProvider: configmapprovider.NewFile(path.Join("testdata", "basic_config.yaml")),
+			wantErr:        &errConfigSourceCreation{},
 		},
 		{
-			name: "manager_resolve_error",
-			parserProvider: &fileParserProvider{
-				FileName: path.Join("testdata", "manager_resolve_error.yaml"),
-			},
-			wantErr: fmt.Errorf("error not wrapped by specific error type: %w", configsource.ErrSessionClosed),
+			name:           "manager_resolve_error",
+			parserProvider: configmapprovider.NewFile(path.Join("testdata", "manager_resolve_error.yaml")),
+			wantErr:        fmt.Errorf("error not wrapped by specific error type: %w", configsource.ErrSessionClosed),
 		},
 	}
 
@@ -88,21 +84,24 @@ func TestConfigSourceParserProvider(t *testing.T) {
 			}
 
 			pp := NewConfigSourceParserProvider(
-				parserprovider.Default(),
+				configmapprovider.NewInMemory(nil),
 				zap.NewNop(),
-				component.DefaultBuildInfo(),
+				component.NewDefaultBuildInfo(),
 				factories...,
 			)
 			require.NotNil(t, pp)
 
-			// Do not use the parserprovider.Default() to simplify the test setup.
+			// Do not use the config.Default() to simplify the test setup.
 			cspp := pp.(*configSourceParserProvider)
 			cspp.pp = tt.parserProvider
 			if cspp.pp == nil {
 				cspp.pp = &mockParserProvider{}
 			}
 
-			cp, err := pp.Get(context.Background())
+			r, err := pp.Retrieve(context.Background(), nil)
+			require.NoError(t, err)
+
+			cp, err := r.Get(context.Background())
 			if tt.wantErr == nil {
 				require.NoError(t, err)
 				require.NotNil(t, cp)
@@ -117,11 +116,11 @@ func TestConfigSourceParserProvider(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				watchForUpdatedError = pp.(parserprovider.Watchable).WatchForUpdate()
+				watchForUpdatedError = cspp.WatchForUpdate()
 			}()
 			cspp.csm.WaitForWatcher()
 
-			closeErr := pp.Close(context.Background())
+			closeErr := cspp.Close(context.Background())
 			assert.NoError(t, closeErr)
 
 			wg.Wait()
@@ -134,13 +133,21 @@ type mockParserProvider struct {
 	ErrOnGet bool
 }
 
-var _ parserprovider.ParserProvider = (*mockParserProvider)(nil)
+var _ configmapprovider.Provider = (*mockParserProvider)(nil)
 
-func (mpp *mockParserProvider) Get(context.Context) (*configparser.ConfigMap, error) {
+func (mpp *mockParserProvider) Retrieve(ctx context.Context, onChange func(*configmapprovider.ChangeEvent)) (configmapprovider.Retrieved, error) {
+	return mpp, nil
+}
+
+func (mpp *mockParserProvider) Shutdown(ctx context.Context) error {
+	return nil
+}
+
+func (mpp *mockParserProvider) Get(context.Context) (*config.Map, error) {
 	if mpp.ErrOnGet {
 		return nil, &errOnParserProviderGet{errors.New("mockParserProvider.Get() forced test error")}
 	}
-	return configparser.NewConfigMap(), nil
+	return config.NewMap(), nil
 }
 
 func (mpp *mockParserProvider) Close(context.Context) error {
@@ -148,17 +155,3 @@ func (mpp *mockParserProvider) Close(context.Context) error {
 }
 
 type errOnParserProviderGet struct{ error }
-
-type fileParserProvider struct {
-	FileName string
-}
-
-var _ parserprovider.ParserProvider = (*fileParserProvider)(nil)
-
-func (fpp *fileParserProvider) Get(context.Context) (*configparser.ConfigMap, error) {
-	return configparser.NewConfigMapFromFile(fpp.FileName)
-}
-
-func (fpp *fileParserProvider) Close(context.Context) error {
-	return nil
-}

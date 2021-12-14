@@ -16,9 +16,9 @@ package testutils
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"path"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -307,7 +307,7 @@ var _ testcontainers.LogConsumer = (*logConsumer)(nil)
 
 func TestTestcontainersContainerMethods(t *testing.T) {
 	alpine := NewContainer().WithImage("alpine").WithCmd(
-		"sh", "-c", "echo rdy > /tmp/something & tail -f /tmp/something",
+		"sh", "-c", "echo rdy > /tmp/something && tail -f /tmp/something",
 	).WithExposedPorts("12345:12345").WithName("my-alpine").WithNetworks(
 		"bridge", "network_a", "network_b",
 	).WillWaitForLogs("rdy").Build()
@@ -322,7 +322,15 @@ func TestTestcontainersContainerMethods(t *testing.T) {
 	}()
 
 	err := alpine.Start(context.Background())
-	require.NoError(t, err)
+	log := ""
+	if err != nil {
+		if logs, e := alpine.Logs(context.Background()); logs != nil && e == nil {
+			buf := new(strings.Builder)
+			io.Copy(buf, logs)
+			log = buf.String()
+		}
+	}
+	require.NoError(t, err, fmt.Sprintf("failed to start container: %q", log))
 
 	assert.NotEmpty(t, alpine.GetContainerID())
 
@@ -342,17 +350,24 @@ func TestTestcontainersContainerMethods(t *testing.T) {
 	assert.EqualValues(t, "12345/tcp", port)
 	require.NoError(t, err)
 
-	expectedPorts := []nat.PortBinding{{HostIP: "0.0.0.0", HostPort: "12345"}}
-	if runtime.GOOS == "darwin" {
-		expectedPorts = append(expectedPorts, nat.PortBinding{HostIP: "::", HostPort: "12345"})
-	}
-
 	portMap, err := alpine.Ports(context.Background())
-	expectedPortMap := nat.PortMap(map[nat.Port][]nat.PortBinding{
-		"12345/tcp": expectedPorts,
-	})
 
-	assert.EqualValues(t, expectedPortMap, portMap)
+	assert.True(t, func() bool {
+		expectedPorts := []nat.PortBinding{{HostIP: "0.0.0.0", HostPort: "12345"}}
+		expectedPortMap := nat.PortMap(map[nat.Port][]nat.PortBinding{
+			"12345/tcp": expectedPorts,
+		})
+
+		if assert.ObjectsAreEqual(expectedPortMap, portMap) {
+			return true
+		}
+
+		expectedPorts = append(expectedPorts, nat.PortBinding{HostIP: "::", HostPort: "12345"})
+		expectedPortMap = nat.PortMap(map[nat.Port][]nat.PortBinding{
+			"12345/tcp": expectedPorts,
+		})
+		return assert.ObjectsAreEqual(expectedPortMap, portMap)
+	}())
 	require.NoError(t, err)
 
 	sid := alpine.SessionID()

@@ -16,6 +16,7 @@
 package components
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -43,10 +44,12 @@ func TestDefaultComponents(t *testing.T) {
 		"fluentforward",
 		"hostmetrics",
 		"jaeger",
+		"journald",
 		"k8s_cluster",
 		"kafka",
 		"kafkametrics",
 		"kubeletstats",
+		"mongodbatlas",
 		"otlp",
 		"prometheus",
 		"prometheus_exec",
@@ -65,12 +68,13 @@ func TestDefaultComponents(t *testing.T) {
 		"batch",
 		"filter",
 		"groupbyattrs",
-		"k8s_tagger",
+		"k8sattributes",
 		"memory_limiter",
 		"metricstransform",
 		"probabilistic_sampler",
 		"resource",
 		"resourcedetection",
+		"routing",
 		"span",
 	}
 	expectedExporters := []config.Type{
@@ -108,7 +112,7 @@ func TestDefaultComponents(t *testing.T) {
 	assert.Len(t, procs, len(expectedProcessors))
 	for _, k := range expectedProcessors {
 		v, ok := procs[k]
-		require.True(t, ok)
+		require.True(t, ok, fmt.Sprintf("Missing expected processor %s", k))
 		assert.Equal(t, k, v.Type())
 	}
 

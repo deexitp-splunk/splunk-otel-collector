@@ -8,6 +8,7 @@ stages:
   - package
   - cve-scan
   - release
+  - choco-release
   - github-release
 
 include:
@@ -26,7 +27,7 @@ semgrep:
   retry: 2
   variables:
     SAST_SCANNER: "Semgrep"
-    SEMGREP_EXCLUDE: "examples,internal/buildscripts,tests,*_test.go"
+    SEMGREP_EXCLUDE: "examples,internal/buildscripts,tests,*_test.go,cmd/otelcol/Dockerfile.windows,deployments/ansible/molecule"
     alert_mode: "policy"
   after_script:
     - echo "Check results at $CI_PIPELINE_URL/security"
@@ -46,9 +47,53 @@ whitesource:
   only:
     - main
     - schedules
+  # allow_failure: false
+  cache:
+    key: "whitesource-go1.17.2"
+    paths:
+      - /usr/local/go
+      - /go/pkg/mod
+  before_script:
+    - mkdir -p /lib64
+    - ln -s /lib/libc.musl-x86_64.so.1 /lib64/ld-linux-x86-64.so.2
+    - |
+      set -e
+      if [ ! -d /usr/local/go ]; then
+        pushd /usr/local
+        wget https://golang.org/dl/go1.17.2.linux-amd64.tar.gz
+        tar xzf go1.17.2.linux-amd64.tar.gz
+        popd
+      fi
+    - export GOROOT=/usr/local/go
+    - export GOPATH=/go
+    - export PATH=${GOROOT}/bin:$PATH
+  script:
+    - bash /whitesource/templates/template-gitlab.sh
+    - |
+      # Check the report and fail if high vulns or rejected components were found
+      set -e
+      report="whitesource-results/json-artifacts/report_metadata.json"
+      if [ -f "$report" ]; then
+        high_vulns="$( jq '."Total High Vulns"' $report )"
+        if [ "$high_vulns" = "null" ]; then
+          echo "Failed to get 'Total High Vulns' from $report"
+          exit 1
+        fi
+        rejected="$( jq '."Total Components Rejected"' $report )"
+        if [ "$rejected" = "null" ]; then
+          echo "Failed to get 'Total Components Rejected' from $report"
+          exit 1
+        fi
+        if [ "$high_vulns" -gt 0 ] || [ "$rejected" -gt 0 ]; then
+          exit 1
+        fi
+      else
+        echo "$report not found"
+        exit 1
+      fi
 
 .go-cache:
-  image: 'docker.repo.splunkdev.net/ci-cd/ci-container:golang-1.17'
+  image: 'docker-hub.repo.splunkdev.net/golang:1.17.2'
   variables:
     GOPATH: "$CI_PROJECT_DIR/.go"
   before_script:
@@ -77,10 +122,12 @@ compile:
   after_script:
     - if [ -e bin/otelcol ]; then rm -f bin/otelcol; fi  # remove the symlink
     - if [ -e bin/translatesfx ]; then rm -f bin/translatesfx; fi  # remove the symlink
+    - if [ -e bin/migratecheckpoint ]; then rm -f bin/migratecheckpoint; fi  # remove the symlink
   artifacts:
     paths:
       - bin/otelcol_*
       - bin/translatesfx_*
+      - bin/migratecheckpoint_*
 
 .sign-release-cache:
   image: 'docker.repo.splunkdev.net/ci-cd/ci-container:python-3.9'
@@ -128,7 +175,7 @@ sign-exe:
       - TARGET: [otelcol, translatesfx]
   variables:
     PATHS: bin/${TARGET}_windows_amd64.exe
-    OPTIONS: "--no-push --timeout=1200"
+    OPTIONS: "--no-push"
   after_script:
     - mkdir -p dist/signed
     - mv bin/signed/${TARGET}_windows_amd64.exe dist/signed/
@@ -164,15 +211,20 @@ build-linux-image:
   stage: package
   dependencies:
     - compile
+  parallel:
+    matrix:
+      - ARCH: [amd64, arm64]
   retry: 2
   script:
-    - make docker-otelcol SKIP_COMPILE=true
+    - make docker-otelcol ARCH=${ARCH} SKIP_COMPILE=true
+    - arch=$( docker inspect --format='{{.Architecture}}' otelcol:${ARCH} )
+    - if [[ "$arch" != "$ARCH" ]]; then exit 1; fi
   after_script:
     - mkdir -p dist
-    - docker save -o dist/otelcol.tar otelcol:latest
+    - docker save -o dist/otelcol-${ARCH}.tar otelcol:${ARCH}
   artifacts:
     paths:
-      - dist/otelcol.tar
+      - dist/otelcol-*.tar
 
 .build-deb-rpm:
   only:
@@ -241,31 +293,55 @@ push-linux-image:
     - build-linux-image
   retry: 2
   before_script:
-    - docker load -i dist/otelcol.tar
+    - docker load -i dist/otelcol-amd64.tar
+    - docker load -i dist/otelcol-arm64.tar
   script:
     - docker login -u $CIRCLECI_QUAY_USERNAME -p $CIRCLECI_QUAY_PASSWORD quay.io
     - |
+      # Set env vars
       set -e
       if [[ -n "${CI_COMMIT_TAG:-}" ]]; then
         IMAGE_NAME="quay.io/signalfx/splunk-otel-collector"
-        IMAGE_TAG=${CI_COMMIT_TAG#v}
+        MANIFEST_TAG=${CI_COMMIT_TAG#v}
       else
         IMAGE_NAME="quay.io/signalfx/splunk-otel-collector-dev"
-        IMAGE_TAG=$CI_COMMIT_SHA
+        MANIFEST_TAG=$CI_COMMIT_SHA
       fi
-      echo "Tagging and pushing ${IMAGE_NAME}:${IMAGE_TAG}"
-      docker tag otelcol:latest ${IMAGE_NAME}:${IMAGE_TAG}
-      docker push ${IMAGE_NAME}:${IMAGE_TAG}
-      if [[ "$IMAGE_TAG" = "$CI_COMMIT_SHA" ]] || [[ "$IMAGE_TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        # only push latest tag for main and stable releases
-        echo "Tagging and pushing ${IMAGE_NAME}:latest"
-        docker tag otelcol:latest ${IMAGE_NAME}:latest
-        docker push ${IMAGE_NAME}:latest
+    - |
+      # Tag and push images
+      set -e
+      for arch in "amd64" "arm64"; do
+        ARCH_TAG="${MANIFEST_TAG}-${arch}"
+        echo "Tagging and pushing ${IMAGE_NAME}:${ARCH_TAG}"
+        docker tag otelcol:${arch} ${IMAGE_NAME}:${ARCH_TAG}
+        docker push ${IMAGE_NAME}:${ARCH_TAG}
+        if [[ "${CI_COMMIT_BRANCH:-}" = "main" ]] || [[ "${CI_COMMIT_TAG:-}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          # only push latest tag for main and stable releases
+          LATEST_TAG="latest-${arch}"
+          echo "Tagging and pushing ${IMAGE_NAME}:${LATEST_TAG}"
+          docker tag ${IMAGE_NAME}:${ARCH_TAG} ${IMAGE_NAME}:${LATEST_TAG}
+          docker push ${IMAGE_NAME}:${LATEST_TAG}
+        fi
+      done
+    - |
+      # Create and push image manifests
+      set -e
+      echo "Creating and pushing ${IMAGE_NAME}:${MANIFEST_TAG} manifest"
+      docker manifest create ${IMAGE_NAME}:${MANIFEST_TAG} --amend ${IMAGE_NAME}:${MANIFEST_TAG}-amd64 --amend ${IMAGE_NAME}:${MANIFEST_TAG}-arm64
+      docker manifest push ${IMAGE_NAME}:${MANIFEST_TAG}
+      if [[ "${CI_COMMIT_BRANCH:-}" = "main" ]] || [[ "${CI_COMMIT_TAG:-}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        # only push latest manifest tag for main and stable releases
+        echo "Creating and pushing ${IMAGE_NAME}:latest manifest"
+        docker manifest create ${IMAGE_NAME}:latest --amend ${IMAGE_NAME}:latest-amd64 --amend ${IMAGE_NAME}:latest-arm64
+        docker manifest push ${IMAGE_NAME}:latest
       fi
-    - docker inspect --format='{{.RepoDigests}}' ${IMAGE_NAME}:${IMAGE_TAG} | tee dist/linux_digest.txt
+    - docker pull ${IMAGE_NAME}:${MANIFEST_TAG}
+    - docker inspect --format='{{.RepoDigests}}' ${IMAGE_NAME}:${MANIFEST_TAG} | tee dist/linux_digest.txt
+    - docker manifest inspect ${IMAGE_NAME}:${MANIFEST_TAG} | tee dist/manifest_digest.txt
   artifacts:
     paths:
       - dist/linux_digest.txt
+      - dist/manifest_digest.txt
 
 build-push-windows-image:
   only:
@@ -299,7 +375,7 @@ build-push-windows-image:
       docker build -t ${IMAGE_NAME}:${IMAGE_TAG} --build-arg SMART_AGENT_RELEASE=${SMART_AGENT_RELEASE} -f .\cmd\otelcol\Dockerfile.windows .\cmd\otelcol\
       echo "Pushing ${IMAGE_NAME}:${IMAGE_TAG}"
       docker push ${IMAGE_NAME}:${IMAGE_TAG}
-      if ($IMAGE_TAG -eq $env:CI_COMMIT_SHA -or $IMAGE_TAG -match '^\d+\.\d+\.\d+$') {
+      if ($env:CI_COMMIT_BRANCH -eq "main" -or $env:CI_COMMIT_TAG -match '^v\d+\.\d+\.\d+$') {
         # only push latest tag for main and stable releases
         echo "Tagging and pushing ${IMAGE_NAME}:latest"
         docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
@@ -352,10 +428,43 @@ release-msi:
     - build-msi
   variables:
     PATHS: dist/*.msi
-    OPTIONS: "--no-push --timeout=1200"
+    OPTIONS: "--no-push"
   artifacts:
     paths:
       - dist/signed/*.msi
+
+choco-release:
+  only:
+    variables:
+      - $CI_COMMIT_BRANCH == "main"
+      - $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+.*/
+  except:
+    - schedules
+  stage: choco-release
+  dependencies:
+    - release-msi
+  tags:
+    - windows
+  script:
+    - |
+      $ErrorActionPreference = 'Stop'
+      Set-PSDebug -Trace 1
+      $msi_file_name = Resolve-Path .\dist\signed\splunk-otel-collector*.msi | Split-Path -leaf
+      if ($msi_file_name -match '(\d+\.\d+\.\d+)(\.\d+)?') {
+        $version = $matches[0]
+      } else {
+        throw "Failed to get version from $msi_file_name"
+      }
+      .\internal\buildscripts\packaging\choco\make.ps1 build_choco -Version $version -BuildDir .\dist\signed
+    - Test-Path .\dist\signed\splunk-otel-collector.${version}.nupkg
+    - |
+      # Only push the choco package for stable release tags
+      if ($env:CI_COMMIT_TAG -match '^v\d+\.\d+\.\d+$') {
+        choco push -k $env:CHOCO_TOKEN .\dist\signed\splunk-otel-collector.${version}.nupkg
+      }
+  artifacts:
+    paths:
+      - dist/signed/*.nupkg
 
 # release installer scripts; disabled until we get a token for pushing to S3
 .release-installers:
@@ -385,6 +494,7 @@ github-release:
     - release-msi
     - push-linux-image
     - build-push-windows-image
+    - choco-release
   script:
     - mkdir -p dist/assets
     - cp bin/otelcol_linux_* dist/assets/
@@ -459,18 +569,22 @@ cve-scan:
     - main
     - schedules
   before_script:
-    - mkdir -p ~/.docker/cli-plugins
-    - curl https://github.com/docker/scan-cli-plugin/releases/latest/download/docker-scan_linux_amd64 -L -s -S -o ~/.docker/cli-plugins/docker-scan
-    - chmod +x ~/.docker/cli-plugins/docker-scan
+    - apt-get update
+    - apt-get install -y ca-certificates curl gnupg lsb-release
+    - curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+    - echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+    - apt-get update
+    - apt-get install -y docker-ce-cli docker-scan-plugin
   script:
     - |
-      if [ -f dist/otelcol.tar ]; then
-        docker load -i dist/otelcol.tar
+      if [ -f dist/otelcol-amd64.tar ]; then
+        docker load -i dist/otelcol-amd64.tar
+        docker tag otelcol:amd64 otelcol:latest
       else
         make docker-otelcol
       fi
     - docker scan --accept-license --login --token ${SNYK_AUTH_TOKEN}
-    - docker scan otelcol
+    - docker scan --severity high otelcol
   after_script:
     - |
       if [ "$CI_JOB_STATUS" != "success" ]; then

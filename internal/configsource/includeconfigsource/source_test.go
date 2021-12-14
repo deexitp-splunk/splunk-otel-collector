@@ -25,6 +25,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/experimental/configsource"
 
 	"github.com/signalfx/splunk-otel-collector/internal/configprovider"
@@ -58,17 +59,17 @@ func TestIncludeConfigSource_Session(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, err := newConfigSource(configprovider.CreateParams{}, &Config{})
+			source, err := newConfigSource(configprovider.CreateParams{}, &Config{})
 			require.NoError(t, err)
-			require.NotNil(t, s)
+			require.NotNil(t, source)
 
 			ctx := context.Background()
 			defer func() {
-				assert.NoError(t, s.Close(ctx))
+				assert.NoError(t, source.Close(ctx))
 			}()
 
 			file := path.Join("testdata", tt.selector)
-			r, err := s.Retrieve(ctx, file, tt.params)
+			r, err := source.Retrieve(ctx, file, config.NewMapFromStringMap(tt.params))
 			if tt.wantErr != nil {
 				assert.Nil(t, r)
 				require.IsType(t, tt.wantErr, err)
@@ -120,13 +121,13 @@ func TestIncludeConfigSource_DeleteFileError(t *testing.T) {
 		t.Skip("Windows only test")
 	}
 
-	s, err := newConfigSource(configprovider.CreateParams{}, &Config{DeleteFiles: true})
+	source, err := newConfigSource(configprovider.CreateParams{}, &Config{DeleteFiles: true})
 	require.NoError(t, err)
-	require.NotNil(t, s)
+	require.NotNil(t, source)
 
 	ctx := context.Background()
 	defer func() {
-		assert.NoError(t, s.Close(ctx))
+		assert.NoError(t, source.Close(ctx))
 	}()
 
 	// Copy test file
@@ -142,7 +143,7 @@ func TestIncludeConfigSource_DeleteFileError(t *testing.T) {
 		assert.NoError(t, os.Remove(dst))
 	})
 
-	r, err := s.Retrieve(ctx, dst, nil)
+	r, err := source.Retrieve(ctx, dst, nil)
 	assert.IsType(t, &errFailedToDeleteFile{}, err)
 	assert.Nil(t, r)
 }

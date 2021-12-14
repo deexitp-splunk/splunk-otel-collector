@@ -20,7 +20,8 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	"go.etcd.io/etcd/client"
+	"go.etcd.io/etcd/client/v2"
+	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/experimental/configsource"
 	"go.uber.org/zap"
 
@@ -60,7 +61,7 @@ func newConfigSource(params configprovider.CreateParams, cfg *Config) (configsou
 	}, nil
 }
 
-func (s *etcd2ConfigSource) Retrieve(ctx context.Context, selector string, _ interface{}) (configsource.Retrieved, error) {
+func (s *etcd2ConfigSource) Retrieve(ctx context.Context, selector string, _ *config.Map) (configsource.Retrieved, error) {
 	resp, err := s.kapi.Get(ctx, selector, nil)
 	if err != nil {
 		return nil, err
@@ -70,10 +71,6 @@ func (s *etcd2ConfigSource) Retrieve(ctx context.Context, selector string, _ int
 	s.closeFuncs = append(s.closeFuncs, cancel)
 
 	return configprovider.NewWatchableRetrieved(resp.Node.Value, s.newWatcher(watchCtx, selector, resp.Node.ModifiedIndex)), nil
-}
-
-func (s *etcd2ConfigSource) RetrieveEnd(context.Context) error {
-	return nil
 }
 
 func (s *etcd2ConfigSource) Close(context.Context) error {

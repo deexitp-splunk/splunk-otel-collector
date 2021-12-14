@@ -24,6 +24,7 @@ import (
 	"text/template"
 
 	"github.com/fsnotify/fsnotify"
+	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/experimental/configsource"
 
 	"github.com/signalfx/splunk-otel-collector/internal/configprovider"
@@ -52,14 +53,14 @@ func newConfigSource(_ configprovider.CreateParams, config *Config) (configsourc
 	}, nil
 }
 
-func (is *includeConfigSource) Retrieve(_ context.Context, selector string, params interface{}) (configsource.Retrieved, error) {
+func (is *includeConfigSource) Retrieve(_ context.Context, selector string, paramsConfigMap *config.Map) (configsource.Retrieved, error) {
 	tmpl, err := template.ParseFiles(selector)
 	if err != nil {
 		return nil, err
 	}
 
 	var buf bytes.Buffer
-	if err = tmpl.Execute(&buf, params); err != nil {
+	if err = tmpl.Execute(&buf, paramsConfigMap); err != nil {
 		return nil, err
 	}
 
@@ -82,10 +83,6 @@ func (is *includeConfigSource) Retrieve(_ context.Context, selector string, para
 		return configprovider.NewRetrieved(buf.Bytes()), nil
 	}
 	return configprovider.NewWatchableRetrieved(buf.Bytes(), watchForUpdateFn), nil
-}
-
-func (is *includeConfigSource) RetrieveEnd(context.Context) error {
-	return nil
 }
 
 func (is *includeConfigSource) Close(context.Context) error {

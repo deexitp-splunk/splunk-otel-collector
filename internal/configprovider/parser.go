@@ -22,7 +22,7 @@ import (
 
 	"github.com/spf13/cast"
 	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/config/configparser"
+	expcfg "go.opentelemetry.io/collector/config/experimental/config"
 	"go.opentelemetry.io/collector/config/experimental/configsource"
 )
 
@@ -40,7 +40,7 @@ type (
 
 // Load reads the configuration for ConfigSource objects from the given parser and returns a map
 // from the full name of config sources to the respective ConfigSettings.
-func Load(ctx context.Context, v *configparser.ConfigMap, factories Factories) (map[string]ConfigSettings, error) {
+func Load(ctx context.Context, v *config.Map, factories Factories) (map[string]expcfg.Source, error) {
 	processedParser, err := processParser(ctx, v)
 	if err != nil {
 		return nil, err
@@ -54,8 +54,8 @@ func Load(ctx context.Context, v *configparser.ConfigMap, factories Factories) (
 	return cfgSrcSettings, nil
 }
 
-// processParser prepares a configparser.ConfigMap to be used to load config source settings.
-func processParser(ctx context.Context, v *configparser.ConfigMap) (*configparser.ConfigMap, error) {
+// processParser prepares a config.Map to be used to load config source settings.
+func processParser(ctx context.Context, v *config.Map) (*config.Map, error) {
 	// Use a manager to resolve environment variables with a syntax consistent with
 	// the config source usage.
 	manager := newManager(make(map[string]configsource.ConfigSource))
@@ -63,14 +63,14 @@ func processParser(ctx context.Context, v *configparser.ConfigMap) (*configparse
 		_ = manager.Close(ctx)
 	}()
 
-	processedParser := configparser.NewConfigMap()
+	processedParser := config.NewMap()
 	for _, key := range v.AllKeys() {
 		if !strings.HasPrefix(key, configSourcesKey) {
 			// In Load we only care about config sources, ignore everything else.
 			continue
 		}
 
-		value, err := manager.expandStringValues(ctx, v.Get(key))
+		value, err := manager.parseConfigValue(ctx, v.Get(key))
 		if err != nil {
 			return nil, err
 		}
@@ -80,38 +80,37 @@ func processParser(ctx context.Context, v *configparser.ConfigMap) (*configparse
 	return processedParser, nil
 }
 
-func loadSettings(css map[string]interface{}, factories Factories) (map[string]ConfigSettings, error) {
+func loadSettings(css map[string]interface{}, factories Factories) (map[string]expcfg.Source, error) {
 	// Prepare resulting map.
-	cfgSrcToSettings := make(map[string]ConfigSettings)
+	cfgSrcToSettings := make(map[string]expcfg.Source)
 
 	// Iterate over extensions and create a config for each.
 	for key, value := range css {
-		settingsParser := configparser.NewConfigMapFromStringMap(cast.ToStringMap(value))
+		settingsParser := config.NewMapFromStringMap(cast.ToStringMap(value))
 
 		// Decode the key into type and fullName components.
-		componentID, err := config.NewIDFromString(key)
+		componentID, err := config.NewComponentIDFromString(key)
 		if err != nil {
-			return nil, &errInvalidTypeAndNameKey{fmt.Errorf("invalid %s type and name key %q: %v", configSourcesKey, key, err)}
+			return nil, &errInvalidTypeAndNameKey{fmt.Errorf("invalid %s type and name key %q: %w", configSourcesKey, key, err)}
 		}
-		typeStr := componentID.Type()
-		fullName := componentID.String()
 
 		// Find the factory based on "type" that we read from config source.
-		factory := factories[typeStr]
+		factory := factories[componentID.Type()]
 		if factory == nil {
-			return nil, &errUnknownType{fmt.Errorf("unknown %s type %q for %s", configSourcesKey, typeStr, fullName)}
+			return nil, &errUnknownType{fmt.Errorf("unknown %s type %q for %q", configSourcesKey, componentID.Type(), componentID)}
 		}
 
 		// Create the default config.
 		cfgSrcSettings := factory.CreateDefaultConfig()
-		cfgSrcSettings.SetName(fullName)
+		cfgSrcSettings.SetIDName(componentID.Name())
 
 		// Now that the default settings struct is created we can Unmarshal into it
 		// and it will apply user-defined config on top of the default.
-		if err := settingsParser.UnmarshalExact(&cfgSrcSettings); err != nil {
-			return nil, &errUnmarshalError{fmt.Errorf("error reading %s configuration for %s: %v", configSourcesKey, fullName, err)}
+		if err = settingsParser.UnmarshalExact(&cfgSrcSettings); err != nil {
+			return nil, &errUnmarshalError{fmt.Errorf("error reading %s configuration for %q: %w", configSourcesKey, componentID, err)}
 		}
 
+		fullName := componentID.String()
 		if cfgSrcToSettings[fullName] != nil {
 			return nil, &errDuplicateName{fmt.Errorf("duplicate %s name %s", configSourcesKey, fullName)}
 		}

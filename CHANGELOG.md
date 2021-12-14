@@ -2,17 +2,115 @@
 
 ## Unreleased
 
-### Added
+## v0.41.0
 
-- Add Chocolately package support. (#724)
+This Splunk OpenTelemetry Collector release includes changes from the [opentelemetry-collector v0.41.0](https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.41.0) and the [opentelemetry-collector-contrib v0.41.0](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.41.0) releases.
 
-## 🛑 Breaking changes 🛑
+### 🚀 New components 🚀
+
+- [`journald` receiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/journaldreceiver) to parse journald events from systemd journal
+
+### 💡 Enhancements 💡
+
+- Update bundled Smart Agent to [v5.17.1](https://github.com/signalfx/signalfx-agent/releases/tag/v5.17.1)
+- Update OTLP HTTP receiver endpoint to use port 4318 in default configuration files (#1017)
+
+## v0.40.0
+
+This Splunk OpenTelemetry Collector release includes changes from the [opentelemetry-collector v0.40.0](https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.40.0) and the [opentelemetry-collector-contrib v0.40.0](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.40.0) releases.
+
+### 🚀 New components 🚀
+
+- [mongodbatlas](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/mongodbatlasreceiver) receiver to receive metrics from MongoDB Atlas via their monitoring APIs (#997)
+- [routing](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/routingprocessor) processor to route logs, metrics or traces to specific exporters (#982)
+
+## v0.39.0
+
+This Splunk OpenTelemetry Collector release includes changes from the [opentelemetry-collector v0.39.0](https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.39.0) and the [opentelemetry-collector-contrib v0.39.0](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.39.0) releases.
+
+### 💡 Enhancements 💡
+
+- Initial [Chocolatey package](https://github.com/signalfx/splunk-otel-collector/blob/main/docs/getting-started/windows-manual.md#chocolatey-installation) release
+- Update bundled Smart Agent to [v5.16.0](https://github.com/signalfx/signalfx-agent/releases/tag/v5.16.0)
+
+### 🧰 Bug fixes 🧰
+
+- Fix token passthrough for splunkhec receiver/exporter ([#5435](https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/5435))
+- Fix --set command line flag functionality (#939)
+
+## v0.38.1
+
+### 🧰 Bug fixes 🧰
+
+- Fix evaluating env variables in ecs ec2 configs (#930)
+- Correct certifi CA bundle removal from Smart Agent bundle (#933)
+- Fix evaluating env variables in fargate config (#935)
+
+## v0.38.0
+
+This Splunk OpenTelemetry Collector release includes changes from the [opentelemetry-collector v0.38.0](https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.38.0) and the [opentelemetry-collector-contrib v0.38.0](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.38.0) releases.
+
+### 💡 Enhancements 💡
+
+- Initial release of multi-arch manifest for amd64 and arm64 linux docker images (#866)
+  - **Note:** The Smart Agent and Collectd bundle is only included with the amd64 image
+- Enable otlp receiver in the gateway logs pipeline (#903)
+- Update bundled Smart Agent to [v5.15.0](https://github.com/signalfx/signalfx-agent/releases/tag/v5.15.0)
+
+## v0.37.1
+
+### 💡 Enhancements 💡
+
+- Initial release of [`migratecheckpoint`](https://github.com/signalfx/splunk-otel-collector/tree/main/cmd/migratecheckpoint) to migrate Fluentd's position file to Otel checkpoints
+- Upgrade golang to v1.17.2 for CVE-2021-38297
+- Upgrade `github.com/hashicorp/consul/api` to v1.11.0 for CVE-2021-37219
+- Upgrade `github.com/hashicorp/vault` to v1.7.2 for CVE-2021-27400, CVE-2021-29653, and CVE-2021-32923
+- Upgrade `github.com/jackc/pgproto3/v2` to v2.1.1
+- Upgrade `go.etcd.io/etcd` to `go.etcd.io/etcd/client/v2` for CVE-2020-15114
+- Remove test certs from the smart agent bundle (#861)
+- Run the `otelcol` container process as non-root user in provided docker image (#864)
+
+### 🧰 Bug fixes 🧰
+
+- Temporarily downgrade `gopsutil` dep to avoid errors in k8s deployment (#877)
+
+## v0.37.0
+
+This Splunk OpenTelemetry Connector release includes changes from the [opentelemetry-collector v0.37.0](https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.37.0) and the [opentelemetry-collector-contrib v0.37.1](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.37.1) releases. Due to go modules dep issues, the Collector Contrib release 0.37.0 has been retracted in favor of 0.37.1.
+
+### 💡 Enhancements 💡
+
+- `signalfx` exporter: Add support for per cpu metrics [#5756](https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/5756)
+- Add [Hashicorp Nomad](https://github.com/signalfx/splunk-otel-collector/tree/main/deployments/nomad) support (#819)
+- Add config converter function to unsquash Splunk HEC exporter tls fields (#832)
+- Rename `k8s_tagger` processor config entries to [`k8sattributes`](https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/5384) (#848)
+- Update bundled Smart Agent to [v5.14.2](https://github.com/signalfx/signalfx-agent/releases/tag/v5.14.2)
+
+## v0.36.1
+
+### 🚀 New components 🚀
+
+- [`httpsink` exporter](https://github.com/signalfx/splunk-otel-collector/tree/main/internal/exporter/httpsinkexporter) to make span data available via a HTTP endpoint
+- Initial release of [`translatesfx`](https://github.com/signalfx/splunk-otel-collector/tree/main/cmd/translatesfx) to translate a SignalFx Smart Agent configuration file into a configuration that can be used by an OpenTelemetry Collector
+
+### 🛑 Breaking changes 🛑
 
 - Reorder detectors in default configs, moving the `system` detector to the 
   end of the list. Applying this change to a pre-existing config in an EC2
   or Azure deployment will change both the `host.name` dimension and the 
   resource ID dimension on some MTSes, possibly causing detectors to fire. 
   (#822)
+
+### 💡 Enhancements 💡
+
+- Add `--skip-collector-repo` and `--skip-fluentd-repo` options to the Linux installer script to skip apt/yum/zypper repo config (#801)
+- Add `collector_msi_url` and `fluentd_msi_url` options to the Windows installer script to allow custom URLs for downloading MSIs (#803)
+- Start collector service after deb/rpm install or upgrade if env file exists (#805)
+
+### 🧰 Bug fixes 🧰
+
+- Allow the version flag without environment variables (#800)
+- Fix Linux installer to set `SPLUNK_MEMORY_TOTAL_MIB` in the environment file if `--ballast` option is specified (#807)
 
 ## v0.36.0
 
@@ -33,7 +131,7 @@ This Splunk OpenTelemetry Connector release includes changes from the [opentelem
 
 This Splunk OpenTelemetry Connector release includes changes from the [opentelemetry-collector v0.35.0](https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.35.0) and the [opentelemetry-collector-contrib v0.35.0](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.35.0) releases.
 
-## 🚀 New components 🚀
+### 🚀 New components 🚀
 
 - [`groupbyattrs` processor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/groupbyattrsprocessor)
 
@@ -97,7 +195,7 @@ This Splunk OpenTelemetry Connector release includes changes from the [opentelem
 
 This Splunk OpenTelemetry Connector release includes changes from the [opentelemetry-collector v0.31.0](https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.31.0) and the [opentelemetry-collector-contrib v0.31.0](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.31.0) releases.
 
-## 🚀 New components 🚀
+### 🚀 New components 🚀
 
 - [`file_storage` extension](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/storage/filestorage)
 
@@ -156,7 +254,7 @@ This Splunk OpenTelemetry Collector release includes changes from the [opentelem
 
 This Splunk OpenTelemetry Collector release includes changes from the [opentelemetry-collector v0.26.0](https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.26.0) and the [opentelemetry-collector-contrib v0.26.0](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.26.0) releases.
 
-## 🚀 New components 🚀
+### 🚀 New components 🚀
 
 - [kafkametrics](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/kafkametricsreceiver) receiver
 
@@ -181,7 +279,7 @@ This Splunk OpenTelemetry Collector release includes changes from the [opentelem
 
 This Splunk OpenTelemetry Collector release includes changes from the [opentelemetry-collector v0.25.0](https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.25.0) and the [opentelemetry-collector-contrib v0.25.0](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.25.0) releases.
 
-## 🚀 New components 🚀
+### 🚀 New components 🚀
 
 - [filelog](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/filelogreceiver) receiver (#289)
 - [probabilisticsampler](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/probabilisticsamplerprocessor) processor (#300)

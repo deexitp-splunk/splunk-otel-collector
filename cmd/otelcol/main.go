@@ -19,15 +19,17 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strconv"
 	"strings"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configmapprovider"
 	"go.opentelemetry.io/collector/service"
-	"go.opentelemetry.io/collector/service/parserprovider"
 	"go.uber.org/zap"
 
 	"github.com/signalfx/splunk-otel-collector/internal/components"
@@ -96,18 +98,45 @@ func main() {
 			parserProvider,
 			configconverter.RemoveBallastKey,
 			configconverter.MoveOTLPInsecureKey,
+			configconverter.MoveHecTLS,
+			configconverter.RenameK8sTagger,
 		)
 	}
 
 	serviceParams := service.CollectorSettings{
-		BuildInfo:      info,
-		Factories:      factories,
-		ParserProvider: parserProvider,
+		BuildInfo:         info,
+		Factories:         factories,
+		ConfigMapProvider: parserProvider,
 	}
 
 	if err := run(serviceParams); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// required to support --set functionality no longer directly parsed by the core config loader.
+// taken from https://github.com/open-telemetry/opentelemetry-collector/blob/48a2e01652fa679c89259866210473fc0d42ca95/service/flags.go#L39
+type stringArrayValue struct {
+	values []string
+}
+
+func (s *stringArrayValue) Set(val string) error {
+	s.values = append(s.values, val)
+	return nil
+}
+
+func (s *stringArrayValue) String() string {
+	return "[" + strings.Join(s.values, ",") + "]"
+}
+
+func getSetProperties() []string {
+	properties := &stringArrayValue{}
+	flagSet := flag.NewFlagSet("", flag.ContinueOnError)
+	flagSet.SetOutput(io.Discard)
+	flagSet.Var(properties, "set", "")
+	// we are only interested in the --set option so ignore errors
+	_ = flagSet.Parse(os.Args[1:])
+	return properties.values
 }
 
 func hasFlag(flag string) bool {
@@ -342,26 +371,24 @@ func setDefaultEnvVars() {
 }
 
 // Returns a ParserProvider that reads configuration YAML from an environment variable when applicable.
-func newBaseParserProvider() parserprovider.ParserProvider {
-	_, configPathFlag := getKeyValue(os.Args[1:], "--config")
-	configPathVar := os.Getenv(configEnvVarName)
+func newBaseParserProvider() configmapprovider.Provider {
+	var configPath string
+	var ok bool
+	if ok, configPath = getKeyValue(os.Args[1:], "--config"); !ok {
+		configPath = os.Getenv(configEnvVarName)
+	}
 	configYaml := os.Getenv(configYamlEnvVarName)
 
-	if configPathFlag == "" && configPathVar == "" && configYaml != "" {
-		return parserprovider.NewInMemory(bytes.NewBufferString(configYaml))
+	if configPath == "" && configYaml != "" {
+		return configmapprovider.NewExpand(configmapprovider.NewInMemory(bytes.NewBufferString(configYaml)))
 	}
 
-	return parserprovider.Default()
+	return configmapprovider.NewDefault(configPath, getSetProperties())
 }
 
 func runInteractive(settings service.CollectorSettings) error {
-	app, err := service.New(settings)
-	if err != nil {
-		return fmt.Errorf("failed to construct the application: %w", err)
-	}
-
-	cmd := service.NewCommand(app)
-	if err = cmd.Execute(); err != nil {
+	cmd := service.NewCommand(settings)
+	if err := cmd.Execute(); err != nil {
 		return fmt.Errorf("application run finished with error: %w", err)
 	}
 

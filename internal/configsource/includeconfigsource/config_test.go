@@ -23,7 +23,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/config/configparser"
+	"go.opentelemetry.io/collector/config/configtest"
+	expcfg "go.opentelemetry.io/collector/config/experimental/config"
 	"go.uber.org/zap"
 
 	"github.com/signalfx/splunk-otel-collector/internal/configprovider"
@@ -31,7 +32,7 @@ import (
 
 func TestIncludeConfigSourceLoadConfig(t *testing.T) {
 	fileName := path.Join("testdata", "config.yaml")
-	v, err := configparser.NewConfigMapFromFile(fileName)
+	v, err := configtest.LoadConfigMap(fileName)
 	require.NoError(t, err)
 
 	factories := map[config.Type]configprovider.Factory{
@@ -41,26 +42,17 @@ func TestIncludeConfigSourceLoadConfig(t *testing.T) {
 	actualSettings, err := configprovider.Load(context.Background(), v, factories)
 	require.NoError(t, err)
 
-	expectedSettings := map[string]configprovider.ConfigSettings{
+	expectedSettings := map[string]expcfg.Source{
 		"include": &Config{
-			Settings: &configprovider.Settings{
-				TypeVal: "include",
-				NameVal: "include",
-			},
+			SourceSettings: expcfg.NewSourceSettings(config.NewComponentID(typeStr)),
 		},
 		"include/delete_files": &Config{
-			Settings: &configprovider.Settings{
-				TypeVal: "include",
-				NameVal: "include/delete_files",
-			},
-			DeleteFiles: true,
+			SourceSettings: expcfg.NewSourceSettings(config.NewComponentIDWithName(typeStr, "delete_files")),
+			DeleteFiles:    true,
 		},
 		"include/watch_files": &Config{
-			Settings: &configprovider.Settings{
-				TypeVal: "include",
-				NameVal: "include/watch_files",
-			},
-			WatchFiles: true,
+			SourceSettings: expcfg.NewSourceSettings(config.NewComponentIDWithName(typeStr, "watch_files")),
+			WatchFiles:     true,
 		},
 	}
 

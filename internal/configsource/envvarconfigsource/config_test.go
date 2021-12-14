@@ -22,7 +22,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/config/configparser"
+	"go.opentelemetry.io/collector/config/configtest"
+	expcfg "go.opentelemetry.io/collector/config/experimental/config"
 	"go.uber.org/zap"
 
 	"github.com/signalfx/splunk-otel-collector/internal/configprovider"
@@ -30,7 +31,7 @@ import (
 
 func TestEnvVarConfigSourceLoadConfig(t *testing.T) {
 	fileName := path.Join("testdata", "config.yaml")
-	v, err := configparser.NewConfigMapFromFile(fileName)
+	v, err := configtest.LoadConfigMap(fileName)
 	require.NoError(t, err)
 
 	factories := map[config.Type]configprovider.Factory{
@@ -40,18 +41,12 @@ func TestEnvVarConfigSourceLoadConfig(t *testing.T) {
 	actualSettings, err := configprovider.Load(context.Background(), v, factories)
 	require.NoError(t, err)
 
-	expectedSettings := map[string]configprovider.ConfigSettings{
+	expectedSettings := map[string]expcfg.Source{
 		"env": &Config{
-			Settings: &configprovider.Settings{
-				TypeVal: "env",
-				NameVal: "env",
-			},
+			SourceSettings: expcfg.NewSourceSettings(config.NewComponentID(typeStr)),
 		},
 		"env/with_fallback": &Config{
-			Settings: &configprovider.Settings{
-				TypeVal: "env",
-				NameVal: "env/with_fallback",
-			},
+			SourceSettings: expcfg.NewSourceSettings(config.NewComponentIDWithName(typeStr, "with_fallback")),
 			Defaults: map[string]interface{}{
 				"k0": 42,
 				"m0": map[string]interface{}{

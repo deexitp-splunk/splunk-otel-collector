@@ -14,8 +14,8 @@
   <a href="https://goreportcard.com/report/github.com/signalfx/splunk-otel-collector">
     <img alt="Go Report Card" src="https://goreportcard.com/badge/github.com/signalfx/splunk-otel-collector?style=for-the-badge">
   </a>
-  <a href="https://circleci.com/gh/signalfx/splunk-otel-collector">
-    <img alt="Build Status" src="https://img.shields.io/circleci/build/github/signalfx/splunk-otel-collector?style=for-the-badge">
+  <a href="https://github.com/signalfx/splunk-otel-collector/actions/workflows/build-and-test.yml?query=branch%3Amain">
+    <img alt="Build Status" src="https://img.shields.io/github/workflow/status/signalfx/splunk-otel-collector/build-and-test?style=for-the-badge">
   </a>
   <a href="https://codecov.io/gh/signalfx/splunk-otel-collector/branch/main/">
     <img alt="Codecov Status" src="https://img.shields.io/codecov/c/github/signalfx/splunk-otel-collector?style=for-the-badge">
@@ -45,9 +45,9 @@
 ---
 
 <!--PRODUCT_DOCS-->
-# Splunk OpenTelemetry Connector
+# Splunk OpenTelemetry Collector
 
-Splunk OpenTelemetry Connector is a distribution of the [OpenTelemetry
+Splunk OpenTelemetry Collector is a distribution of the [OpenTelemetry
 Collector](https://github.com/open-telemetry/opentelemetry-collector). It
 provides a unified way to receive, process, and export metric, trace, and log
 data for [Splunk Observability Cloud](https://www.splunk.com/en_us/observability.html):
@@ -76,7 +76,7 @@ Forwarders](https://www.splunk.com/en_us/products/splunk-enterprise/features/for
 to send data to [Splunk
 Cloud](https://www.splunk.com/en_us/software/splunk-cloud.html) or [Splunk
 Enterprise](https://www.splunk.com/en_us/software/splunk-enterprise.html),
-Splunk OpenTelemetry Connector can be configured to send data to them via the
+Splunk OpenTelemetry Collector can be configured to send data to them via the
 [`splunk_hec`
 exporter](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter/splunkhecexporter).
 
@@ -86,11 +86,11 @@ exporter](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree
 
 The following resources are available:
 
-- [Architecture](docs/architecture.md): How the Connector can be deployed
-- [Components](docs/components.md): What the Connector supports with links to documentation
-- [Monitoring](docs/monitoring.md): How to ensure the Connector is healthy
-- [Security](docs/security.md): How to ensure the Connector is secure
-- [Sizing](docs/sizing.md): How to ensure the Connector is properly sized
+- [Architecture](docs/architecture.md): How the Collector can be deployed
+- [Components](docs/components.md): What the Collector supports with links to documentation
+- [Monitoring](docs/monitoring.md): How to ensure the Collector is healthy
+- [Security](docs/security.md): How to ensure the Collector is secure
+- [Sizing](docs/sizing.md): How to ensure the Collector is properly sized
 - [Troubleshooting](docs/troubleshooting.md): How to resolve common issues
 
 All you need to get started is:
@@ -109,6 +109,7 @@ This distribution is supported on and packaged for a variety of platforms includ
   - [Helm (recommended)](https://github.com/signalfx/splunk-otel-collector-chart)
   - [Operator (in alpha)](https://github.com/signalfx/splunk-otel-collector-operator)
   - [YAML](https://github.com/signalfx/splunk-otel-collector-chart/tree/main/rendered)
+- [HashiCorp Nomad](./deployments/nomad)
 - Linux
   - [Installer script (recommended)](./docs/getting-started/linux-installer.md)
   - Configuration management

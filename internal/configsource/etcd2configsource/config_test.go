@@ -22,7 +22,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/config/configparser"
+	"go.opentelemetry.io/collector/config/configtest"
+	expcfg "go.opentelemetry.io/collector/config/experimental/config"
 	"go.uber.org/zap"
 
 	"github.com/signalfx/splunk-otel-collector/internal/configprovider"
@@ -30,7 +31,7 @@ import (
 
 func TestEtcd2LoadConfig(t *testing.T) {
 	fileName := path.Join("testdata", "config.yaml")
-	v, err := configparser.NewConfigMapFromFile(fileName)
+	v, err := configtest.LoadConfigMap(fileName)
 	require.NoError(t, err)
 
 	factories := map[config.Type]configprovider.Factory{
@@ -40,20 +41,14 @@ func TestEtcd2LoadConfig(t *testing.T) {
 	actualSettings, err := configprovider.Load(context.Background(), v, factories)
 	require.NoError(t, err)
 
-	expectedSettings := map[string]configprovider.ConfigSettings{
+	expectedSettings := map[string]expcfg.Source{
 		"etcd2": &Config{
-			Settings: &configprovider.Settings{
-				TypeVal: "etcd2",
-				NameVal: "etcd2",
-			},
-			Endpoints: []string{"http://localhost:1234"},
+			SourceSettings: expcfg.NewSourceSettings(config.NewComponentID(typeStr)),
+			Endpoints:      []string{"http://localhost:1234"},
 		},
 		"etcd2/auth": &Config{
-			Settings: &configprovider.Settings{
-				TypeVal: "etcd2",
-				NameVal: "etcd2/auth",
-			},
-			Endpoints: []string{"https://localhost:3456"},
+			SourceSettings: expcfg.NewSourceSettings(config.NewComponentIDWithName(typeStr, "auth")),
+			Endpoints:      []string{"https://localhost:3456"},
 			Authentication: &Authentication{
 				Username: "user",
 				Password: "pass",

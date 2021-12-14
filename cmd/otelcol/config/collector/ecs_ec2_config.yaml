@@ -50,7 +50,7 @@ receivers:
       grpc:
         endpoint: 0.0.0.0:4317
       http:
-        endpoint: 0.0.0.0:55681
+        endpoint: 0.0.0.0:4318
   # This section is used to collect the OpenTelemetry Collector metrics
   # Even if just a Splunk APM customer, these metrics are included
   prometheus/internal:
@@ -66,6 +66,9 @@ receivers:
               action: drop
   signalfx:
     endpoint: 0.0.0.0:9943
+    # Whether to preserve incoming access token and use instead of exporter token
+    # default = false
+    #access_token_passthrough: true
   zipkin:
     endpoint: 0.0.0.0:9411
   smartagent/signalfx-forwarder:
@@ -75,7 +78,7 @@ receivers:
     type: ecs-metadata
     metadataEndpoint: "${ECS_TASK_METADATA_ENDPOINT}"
     statsEndpoint: "${ECS_TASK_STATS_ENDPOINT}"
-    excludedImages: ${env:ECS_METADATA_EXCLUDED_IMAGES}
+    excludedImages: $${env:ECS_METADATA_EXCLUDED_IMAGES}
 
 processors:
   batch:
@@ -102,7 +105,7 @@ processors:
     metrics:
       exclude:
         match_type: regexp
-        metric_names: ${env:METRICS_TO_EXCLUDE}
+        metric_names: $${env:METRICS_TO_EXCLUDE}
 #  # Optional: The following processor can be used to add a default "deployment.environment" attribute to the logs and
 #  # traces when it's not populated by instrumentation libraries.
 #  # If enabled, make sure to enable this processor in the pipeline below.

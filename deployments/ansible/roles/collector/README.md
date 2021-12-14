@@ -1,6 +1,6 @@
-# Splunk OpenTelemetry Connector Ansible Role
+# Splunk OpenTelemetry Collector Ansible Role
 
-Ansible role that installs Splunk OpenTelemetry Connector configured to
+Ansible role that installs Splunk OpenTelemetry Collector configured to
 collect metrics, traces and logs from Linux machines and send data to [Splunk 
 Observability Cloud](https://www.splunk.com/en_us/observability.html). 
 
@@ -20,7 +20,7 @@ how to use the role in a playbook with minimal required configuration:
 
 
 ```yaml
-- name: Install Splunk OpenTelemetry Connector
+- name: Install Splunk OpenTelemetry Collector
   hosts: all
   become: yes
   # For Windows "become: yes" will raise error.
@@ -59,6 +59,10 @@ how to use the role in a playbook with minimal required configuration:
   `/etc/otel/collector/gateway_config.yaml` to install the collector in gateway
   mode. (**default:** `/etc/otel/collector/agent_config.yaml` on Linux, 
   **default:** `%ProgramData%\Splunk\OpenTelemetry Collector\agent_config.yaml` on Windows)
+
+- `splunk_config_override`: Custom Splunk OTel Collector config that will be merged into the default config.
+
+- `splunk_config_override_list_merge`: This variable is used to configure `list_merge` option for merging lists in `splunk_config_override` with lists in default config. Allowed options are `replace`, `keep`, `append`, `prepend`, `append_rp` or `prepend_rp`. More details: https://docs.ansible.com/ansible/latest/user_guide/playbooks_filters.html#combining-hashes-dictionaries. (**default:** `replace`)
 
 - `splunk_otel_collector_config_source`: Source path to a Splunk OTel Collector config YAML 
   file on your control host that will be uploaded and set in place of
