@@ -55,6 +55,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusexecreceiver v0.41.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.41.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator v0.41.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/redisreceiver v0.41.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/sapmreceiver v0.41.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/signalfxreceiver v0.41.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/simpleprometheusreceiver v0.41.0
